@@ -21,6 +21,12 @@ export default function DashboardPage() {
   const [username, setUsername] = useState('');
   const [imagePreview, setImagePreview] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [categories, setCategories] = useState(['Electronics', 'Furniture', 'Clothing', 'Books', 'Food', 'Sports', 'Other']);
+  const [newCategory, setNewCategory] = useState('');
+  const [showCategoryModal, setShowCategoryModal] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const isAuth = localStorage.getItem('isAuthenticated');
@@ -93,6 +99,7 @@ export default function DashboardPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setSaving(true);
 
     // Validate custom fields
     const customFieldsObject = {};
@@ -125,6 +132,8 @@ export default function DashboardPage() {
       }
     } catch (err) {
       setError('An error occurred. Please try again.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -183,6 +192,22 @@ export default function DashboardPage() {
     setShowForm(false);
     setImagePreview('');
   };
+
+  const handleAddCategory = () => {
+    if (newCategory.trim() && !categories.includes(newCategory.trim())) {
+      setCategories([...categories, newCategory.trim()]);
+      setNewCategory('');
+      setShowCategoryModal(false);
+    }
+  };
+
+  // Filter items based on search and category
+  const filteredItems = items.filter(item => {
+    const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         item.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === 'all' || item.category === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
 
   const handleLogout = () => {
     localStorage.removeItem('isAuthenticated');
@@ -261,8 +286,64 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Add Item Button */}
-        <div className="mb-6">
+        {/* Search and Filter Section */}
+        <div className="mb-6 bg-white rounded-2xl shadow-lg p-6 border border-gray-100">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Search Bar */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search Items
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by name or description..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-3 pl-11 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-gray-900"
+                />
+                <svg
+                  className="w-5 h-5 text-gray-400 absolute left-3 top-3.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                  />
+                </svg>
+              </div>
+            </div>
+
+            {/* Category Filter */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filter by Category
+              </label>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-gray-900"
+              >
+                <option value="all">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Results count */}
+          <div className="mt-4 text-sm text-gray-600">
+            Showing {filteredItems.length} of {items.length} items
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="mb-6 flex flex-wrap gap-4">
           <button
             onClick={() => setShowForm(!showForm)}
             className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg"
@@ -284,15 +365,50 @@ export default function DashboardPage() {
               {showForm ? 'Cancel' : 'Add New Item'}
             </span>
           </button>
+
+          <button
+            onClick={() => setShowCategoryModal(true)}
+            className="flex items-center space-x-2 px-6 py-3 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white rounded-xl transition-all duration-200 transform hover:scale-105 shadow-lg"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+              />
+            </svg>
+            <span className="font-semibold">Manage Categories</span>
+          </button>
         </div>
 
-        {/* Form */}
+        {/* Modal Overlay and Form */}
         {showForm && (
-          <div className="mb-8 bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">
-              {editingId ? 'Edit Item' : 'Create New Item'}
-            </h2>
-            <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => {
+            if (e.target === e.currentTarget) resetForm();
+          }}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+                <h2 className="text-2xl font-bold text-gray-800">
+                  {editingId ? 'Edit Item' : 'Create New Item'}
+                </h2>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6">
+                <form onSubmit={handleSubmit} className="space-y-6">
               {/* Image Upload */}
               <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center hover:border-purple-500 transition-colors">
                 <input
@@ -375,13 +491,9 @@ export default function DashboardPage() {
                     required
                   >
                     <option value="">Select Category</option>
-                    <option value="Electronics">Electronics</option>
-                    <option value="Furniture">Furniture</option>
-                    <option value="Clothing">Clothing</option>
-                    <option value="Books">Books</option>
-                    <option value="Food">Food</option>
-                    <option value="Sports">Sports</option>
-                    <option value="Other">Other</option>
+                    {categories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 
@@ -464,25 +576,130 @@ export default function DashboardPage() {
               <div className="flex space-x-4 pt-4">
                 <button
                   type="submit"
-                  className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg"
+                  disabled={saving}
+                  className="flex-1 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center"
                 >
-                  {editingId ? 'Update Item' : 'Create Item'}
+                  {saving ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      {editingId ? 'Updating...' : 'Creating...'}
+                    </>
+                  ) : (
+                    editingId ? 'Update Item' : 'Create Item'
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors duration-200"
+                  disabled={saving}
+                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
               </div>
             </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Category Management Modal */}
+        {showCategoryModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={(e) => {
+            if (e.target === e.currentTarget) setShowCategoryModal(false);
+          }}>
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full">
+              <div className="border-b border-gray-200 px-6 py-4 flex justify-between items-center rounded-t-2xl">
+                <h2 className="text-2xl font-bold text-gray-800">Manage Categories</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowCategoryModal(false)}
+                  className="text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-6">
+                {/* Add New Category */}
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Add New Category
+                  </label>
+                  <div className="flex space-x-3">
+                    <input
+                      type="text"
+                      value={newCategory}
+                      onChange={(e) => setNewCategory(e.target.value)}
+                      placeholder="Enter category name..."
+                      className="flex-1 px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all text-gray-900"
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddCategory();
+                        }
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddCategory}
+                      className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg font-semibold transition-all duration-200 transform hover:scale-105"
+                    >
+                      Add
+                    </button>
+                  </div>
+                </div>
+
+                {/* Categories List */}
+                <div>
+                  <h3 className="text-sm font-medium text-gray-700 mb-3">Current Categories</h3>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 max-h-64 overflow-y-auto">
+                    {categories.map((cat, index) => (
+                      <div
+                        key={cat}
+                        className="flex items-center justify-between px-4 py-2 bg-purple-50 rounded-lg border border-purple-200"
+                      >
+                        <span className="text-gray-800 font-medium">{cat}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (confirm(`Delete category "${cat}"?`)) {
+                              setCategories(categories.filter((_, i) => i !== index));
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 transition-colors ml-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Close Button */}
+                <div className="mt-6 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowCategoryModal(false)}
+                    className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-lg transition-colors duration-200"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 
         {/* Items Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {items.length === 0 ? (
+          {filteredItems.length === 0 ? (
             <div className="col-span-full text-center py-16">
               <div className="inline-block p-6 bg-white rounded-2xl shadow-lg">
                 <svg
@@ -498,12 +715,16 @@ export default function DashboardPage() {
                     d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
                   />
                 </svg>
-                <p className="text-xl text-gray-600 font-medium">No items yet</p>
-                <p className="text-gray-500 mt-2">Click &quot;Add New Item&quot; to create your first item</p>
+                <p className="text-xl text-gray-600 font-medium">
+                  {items.length === 0 ? 'No items yet' : 'No items match your search'}
+                </p>
+                <p className="text-gray-500 mt-2">
+                  {items.length === 0 ? 'Click "Add New Item" to create your first item' : 'Try adjusting your search or filter criteria'}
+                </p>
               </div>
             </div>
           ) : (
-            items.map((item) => (
+            filteredItems.map((item) => (
               <div
                 key={item._id}
                 className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-100"
