@@ -1,19 +1,77 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
-
-// GET all items
-export async function GET() {
+import { ObjectId } from 'mongodb';// GET all items with optional search
+export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const searchQuery = searchParams.get('search');
+    const category = searchParams.get('category');
+    
     const client = await clientPromise;
     const db = client.db('crudapp');
-    const items = await db.collection('items').find({}).toArray();
+    
+    let query = {};
+    
+    // Build search query
+    if (searchQuery) {
+      const searchRegex = { $regex: searchQuery, $options: 'i' };
+      query.$or = [
+        { name: searchRegex },
+        { description: searchRegex },
+        { category: searchRegex }
+      ];
+      
+      // Search in custom fields values
+      const customFieldsConditions = [];
+      
+      // Create conditions for searching in custom field values
+      const sampleItem = await db.collection('items').findOne({ customFields: { $exists: true } });
+      if (sampleItem && sampleItem.customFields) {
+        Object.keys(sampleItem.customFields).forEach(key => {
+          customFieldsConditions.push({
+            [`customFields.${key}`]: searchRegex
+          });
+        });
+      }
+      
+      // Add a general search for any custom field value
+      customFieldsConditions.push({
+        $where: `function() {
+          if (this.customFields) {
+            for (let key in this.customFields) {
+              if (this.customFields[key] && this.customFields[key].toString().toLowerCase().includes('${searchQuery.toLowerCase()}')) {
+                return true;
+              }
+            }
+          }
+          return false;
+        }`
+      });
+      
+      if (customFieldsConditions.length > 0) {
+        query.$or = query.$or.concat(customFieldsConditions);
+      }
+    }
+    
+    // Add category filter
+    if (category && category !== 'all') {
+      if (query.$or) {
+        query = { $and: [{ category }, { $or: query.$or }] };
+      } else {
+        query.category = category;
+      }
+    }
+    
+    const items = await db.collection('items').find(query).sort({ createdAt: -1 }).toArray();
     
     return NextResponse.json({ success: true, data: items }, { status: 200 });
   } catch (error) {
     return NextResponse.json(
       { success: false, message: error.message },
       { status: 500 }
+    );
+  }
+} }
     );
   }
 }
